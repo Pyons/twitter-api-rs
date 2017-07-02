@@ -13,9 +13,10 @@ extern crate oauth_client as oauth;
 extern crate serde_derive;
 extern crate serde_json;
 
-use oauth::Token;
+use oauth::{Token, ParamList};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::option::Option;
 use std::string;
 
 error_chain!{
@@ -37,11 +38,15 @@ mod api_twitter_oauth {
 mod api_twitter_soft {
     pub const UPDATE_STATUS: &'static str = "https://api.twitter.com/1.1/statuses/update.json";
     pub const HOME_TIMELINE: &'static str = "https://api.twitter.com/1.1/statuses/home_timeline.\
-                                             json";
+                                        json";
+    pub const USER_TIMELINE : &'static str = "https://api.twitter.com/1.1/statuses/user_timeline.json";
 }
+
+
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Tweet {
+    pub id : u64,
     pub created_at: String,
     pub text: String,
 }
@@ -51,6 +56,13 @@ impl Tweet {
         let conf = serde_json::from_str(&json_string)?;
         Ok(conf)
     }
+}
+
+fn insert_param<'a, K, V>(param: &mut ParamList<'a>, key: K, value: V) -> Option<Cow<'a, str>>
+    where K: Into<Cow<'a, str>>,
+          V: Into<Cow<'a, str>>
+{
+    param.insert(key.into(), value.into())
 }
 
 fn split_query<'a>(query: &'a str) -> HashMap<Cow<'a, str>, Cow<'a, str>> {
@@ -110,6 +122,21 @@ pub fn get_last_tweets(consumer: &Token, access: &Token) -> Result<Vec<Tweet>> {
                            consumer,
                            Some(access),
                            None)?;
+    let last_tweets_json = String::from_utf8(bytes)?;
+    let ts = Tweet::parse_timeline(last_tweets_json)?;
+    Ok(ts)
+}
+
+pub fn get_user_timeline(consumer: &Token, access: &Token, user_id: &str, count: &u32, since_id: u64) -> Result<Vec<Tweet>> {
+    let mut param = ParamList::new();
+    insert_param(&mut param, "screen_name", user_id);
+    //insert_param(&mut param, "since_id", since_id.to_string());
+    insert_param(&mut param, "count", count.to_string());
+
+    let bytes = oauth::get(api_twitter_soft::USER_TIMELINE,
+                           consumer,
+                           Some(access),
+                           Some(&param))?;
     let last_tweets_json = String::from_utf8(bytes)?;
     let ts = Tweet::parse_timeline(last_tweets_json)?;
     Ok(ts)
