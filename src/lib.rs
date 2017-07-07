@@ -1,5 +1,6 @@
+
 #![warn(bad_style)]
-// #![warn(missing_docs)]
+//#![warn(missing_docs)]
 #![warn(unused)]
 #![warn(unused_extern_crates)]
 #![warn(unused_import_braces)]
@@ -13,7 +14,7 @@ extern crate oauth_client as oauth;
 extern crate serde_derive;
 extern crate serde_json;
 
-use oauth::{Token, ParamList};
+use oauth::{ParamList, Token};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::option::Option;
@@ -37,16 +38,17 @@ mod api_twitter_oauth {
 
 mod api_twitter_soft {
     pub const UPDATE_STATUS: &'static str = "https://api.twitter.com/1.1/statuses/update.json";
-    pub const HOME_TIMELINE: &'static str = "https://api.twitter.com/1.1/statuses/home_timeline.\
-                                        json";
-    pub const USER_TIMELINE : &'static str = "https://api.twitter.com/1.1/statuses/user_timeline.json";
+    pub const HOME_TIMELINE: &'static str = "https://api.twitter.com/1.1/statuses/home_timeline\
+                                            .json";
+    pub const USER_TIMELINE: &'static str = "https://api.twitter.com/1.1/statuses/user_timeline\
+                                            .json";
 }
 
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Tweet {
-    pub id : u64,
+    pub id: u64,
     pub created_at: String,
     pub text: String,
 }
@@ -58,11 +60,12 @@ impl Tweet {
     }
 }
 
-fn insert_param<'a, K, V>(param: &mut ParamList<'a>, key: K, value: V) -> Option<Cow<'a, str>>
-    where K: Into<Cow<'a, str>>,
-          V: Into<Cow<'a, str>>
+fn insert_param<'a, K, V>(param: &mut ParamList<'a>, key: K, value: V)
+where
+    K: Into<Cow<'a, str>>,
+    V: Into<Cow<'a, str>>,
 {
-    param.insert(key.into(), value.into())
+    let _ = param.insert(key.into(), value.into());
 }
 
 fn split_query<'a>(query: &'a str) -> HashMap<Cow<'a, str>, Cow<'a, str>> {
@@ -80,28 +83,36 @@ pub fn get_request_token(consumer: &Token) -> Result<Token<'static>> {
     let bytes = oauth::get(api_twitter_oauth::REQUEST_TOKEN, consumer, None, None)?;
     let resp = String::from_utf8(bytes)?;
     let param = split_query(&resp);
-    let token = Token::new(param.get("oauth_token").unwrap().to_string(),
-                           param.get("oauth_token_secret").unwrap().to_string());
+    let token = Token::new(
+        param.get("oauth_token").unwrap().to_string(),
+        param.get("oauth_token_secret").unwrap().to_string(),
+    );
     Ok(token)
 }
 
 pub fn get_authorize_url(request: &Token) -> String {
-    format!("{}?oauth_token={}",
-            api_twitter_oauth::AUTHORIZE,
-            request.key)
+    format!(
+        "{}?oauth_token={}",
+        api_twitter_oauth::AUTHORIZE,
+        request.key
+    )
 }
 
 pub fn get_access_token(consumer: &Token, request: &Token, pin: &str) -> Result<Token<'static>> {
     let mut param = HashMap::new();
     let _ = param.insert("oauth_verifier".into(), pin.into());
-    let bytes = oauth::get(api_twitter_oauth::ACCESS_TOKEN,
-                           consumer,
-                           Some(request),
-                           Some(&param))?;
+    let bytes = oauth::get(
+        api_twitter_oauth::ACCESS_TOKEN,
+        consumer,
+        Some(request),
+        Some(&param),
+    )?;
     let resp = String::from_utf8(bytes)?;
     let param = split_query(&resp);
-    let token = Token::new(param.get("oauth_token").unwrap().to_string(),
-                           param.get("oauth_token_secret").unwrap().to_string());
+    let token = Token::new(
+        param.get("oauth_token").unwrap().to_string(),
+        param.get("oauth_token_secret").unwrap().to_string(),
+    );
     Ok(token)
 }
 
@@ -110,33 +121,51 @@ pub fn get_access_token(consumer: &Token, request: &Token, pin: &str) -> Result<
 pub fn update_status(consumer: &Token, access: &Token, status: &str) -> Result<()> {
     let mut param = HashMap::new();
     let _ = param.insert("status".into(), status.into());
-    let _ = oauth::post(api_twitter_soft::UPDATE_STATUS,
-                        consumer,
-                        Some(access),
-                        Some(&param))?;
+    let _ = oauth::post(
+        api_twitter_soft::UPDATE_STATUS,
+        consumer,
+        Some(access),
+        Some(&param),
+    )?;
     Ok(())
 }
 
 pub fn get_last_tweets(consumer: &Token, access: &Token) -> Result<Vec<Tweet>> {
-    let bytes = oauth::get(api_twitter_soft::HOME_TIMELINE,
-                           consumer,
-                           Some(access),
-                           None)?;
+    let bytes = oauth::get(
+        api_twitter_soft::HOME_TIMELINE,
+        consumer,
+        Some(access),
+        None,
+    )?;
     let last_tweets_json = String::from_utf8(bytes)?;
     let ts = Tweet::parse_timeline(last_tweets_json)?;
     Ok(ts)
 }
 
-pub fn get_user_timeline(consumer: &Token, access: &Token, user_id: &str, count: &u32, since_id: u64) -> Result<Vec<Tweet>> {
+pub fn get_user_timeline(
+    consumer: &Token,
+    access: &Token,
+    user_id: &str,
+    count: &u32,
+    since_id: Option<u64>,
+) -> Result<Vec<Tweet>> {
     let mut param = ParamList::new();
     insert_param(&mut param, "screen_name", user_id);
-    //insert_param(&mut param, "since_id", since_id.to_string());
     insert_param(&mut param, "count", count.to_string());
 
-    let bytes = oauth::get(api_twitter_soft::USER_TIMELINE,
-                           consumer,
-                           Some(access),
-                           Some(&param))?;
+    match since_id {
+        Some(_) => {
+            insert_param(&mut param, "since_id", since_id.unwrap().to_string());
+        }
+        None => {}
+    }
+
+    let bytes = oauth::get(
+        api_twitter_soft::USER_TIMELINE,
+        consumer,
+        Some(access),
+        Some(&param),
+    )?;
     let last_tweets_json = String::from_utf8(bytes)?;
     let ts = Tweet::parse_timeline(last_tweets_json)?;
     Ok(ts)
