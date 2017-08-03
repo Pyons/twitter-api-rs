@@ -15,6 +15,7 @@ extern crate serde_derive;
 extern crate serde_json;
 
 use oauth::{ParamList, Token};
+use std::fmt;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::option::Option;
@@ -57,6 +58,11 @@ impl Tweet {
     pub fn parse_timeline(json_string: String) -> Result<Vec<Tweet>> {
         let conf = serde_json::from_str(&json_string)?;
         Ok(conf)
+    }
+}
+impl fmt::Display for Tweet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} - {}", self.text, self.created_at)
     }
 }
 
@@ -154,7 +160,7 @@ pub fn get_user_timeline(
     insert_param(&mut param, "count", count.to_string());
 
     match since_id {
-        Some(_) => {
+        Some(_) => {           
             insert_param(&mut param, "since_id", since_id.unwrap().to_string());
         }
         None => {}
